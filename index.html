@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Facturas y presupuestos · SIMBAI Lab</title>
+<style>
+:root {
+  --vacio: #07070a; --placa: #101015; --linea: #24242e;
+  --texto: #ececf1; --texto2: #a3a3b5; --texto3: #80809a;
+  --lima: #c8ff00; --rojo: #f87171; --verde: #34d399; --ambar: #fbbf24;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--vacio); color: var(--texto); font: 15px/1.55 "Segoe UI", system-ui, sans-serif; }
+main { max-width: 1100px; margin: 0 auto; padding: 28px 16px 64px; display: grid; gap: 20px; }
+header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; }
+.marca { font: 600 12px/1 ui-monospace, Consolas, monospace; letter-spacing: .14em; text-transform: uppercase; color: var(--lima); margin: 0; }
+nav { display: flex; gap: 6px; flex-wrap: wrap; }
+nav button[aria-current="page"] { border-color: var(--lima); color: var(--lima); }
+h1 { margin: 0; font-size: 26px; letter-spacing: -0.01em; }
+h2 { margin: 0 0 12px; font-size: 18px; }
+.bloque { background: var(--placa); border: 1px solid var(--linea); border-radius: 14px; padding: 16px 18px; }
+input, textarea, select, button { font: inherit; color: var(--texto); background: var(--vacio); border: 1px solid var(--linea); border-radius: 8px; padding: 8px 10px; min-width: 0; }
+textarea { resize: vertical; min-height: 60px; width: 100%; }
+button { cursor: pointer; background: var(--placa); }
+button:hover:not(:disabled) { border-color: var(--lima); }
+button:disabled { opacity: .45; cursor: default; }
+button.principal { background: var(--lima); color: var(--vacio); border-color: var(--lima); font-weight: 600; }
+button.peligro:hover { border-color: var(--rojo); color: var(--rojo); }
+:focus-visible { outline: 2px solid var(--lima); outline-offset: 2px; }
+label { display: grid; gap: 4px; font-size: 13px; color: var(--texto2); }
+.rejilla { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.fila { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.nota { color: var(--texto3); font-size: 13px; }
+.aviso { color: var(--rojo); font-size: 14px; }
+.tabla { width: 100%; border-collapse: collapse; font-size: 14px; }
+.tabla th, .tabla td { padding: 8px 10px; border-bottom: 1px solid var(--linea); text-align: left; vertical-align: middle; }
+.tabla th { color: var(--texto3); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+.num { text-align: right !important; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.desplaza { overflow-x: auto; }
+.estado { font: 600 11px/1 ui-monospace, Consolas, monospace; text-transform: uppercase; letter-spacing: .08em; padding: 4px 7px; border-radius: 5px; border: 1px solid currentColor; }
+.e-borrador { color: var(--texto3); } .e-emitida { color: var(--ambar); } .e-pagada, .e-aceptado { color: var(--verde); } .e-rechazado { color: var(--rojo); }
+.lineas input { width: 100%; }
+.lineas td:nth-child(2) { width: 90px; } .lineas td:nth-child(3) { width: 120px; } .lineas td:nth-child(4) { width: 90px; } .lineas td:nth-child(5) { width: 110px; }
+.editor { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 900px) { .editor { grid-template-columns: minmax(0, 1fr); } }
+
+/* Hoja: lo que se imprime. Papel blanco, sin la estética de la app. */
+.hoja { background: #fff; color: #1a1a1a; border-radius: 6px; padding: 36px 40px; font: 13px/1.5 "Segoe UI", Arial, sans-serif; position: relative; overflow: hidden; }
+.hoja h3 { margin: 0; font-size: 22px; letter-spacing: .02em; }
+.hoja .cab { display: flex; justify-content: space-between; gap: 24px; flex-wrap: wrap; margin-bottom: 28px; }
+.hoja .partes { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+.hoja .partes small { display: block; color: #777; text-transform: uppercase; font-size: 10px; letter-spacing: .08em; margin-bottom: 2px; }
+.hoja table { width: 100%; border-collapse: collapse; }
+.hoja th, .hoja td { padding: 7px 6px; border-bottom: 1px solid #e5e5e5; text-align: left; }
+.hoja th { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: #777; }
+.hoja .totales { margin: 18px 0 0 auto; width: min(320px, 100%); }
+.hoja .totales td { border: 0; padding: 3px 6px; }
+.hoja .totales tr:last-child td { font-weight: 700; font-size: 15px; border-top: 2px solid #1a1a1a; padding-top: 8px; }
+.hoja .pie { margin-top: 28px; color: #555; font-size: 12px; white-space: pre-wrap; }
+.hoja .marca-agua { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%) rotate(-24deg); font: 700 88px/1 Arial, sans-serif; color: rgba(0,0,0,.06); pointer-events: none; }
+@media print {
+  @page { size: A4; margin: 14mm; }
+  body { background: #fff; }
+  body > main > *:not(#vista-editor), #vista-editor > .editor > :not(.columna-hoja), .columna-hoja > :not(.hoja) { display: none !important; }
+  main, #vista-editor, .editor { display: block; padding: 0; max-width: none; }
+  .hoja { border-radius: 0; padding: 0; }
+}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <p class="marca">SIMBAI Lab</p>
+      <h1>Facturas y presupuestos</h1>
+    </div>
+    <nav aria-label="Secciones">
+      <button data-vista="documentos" aria-current="page">Documentos</button>
+      <button data-vista="clientes">Clientes</button>
+      <button data-vista="emisor">Mis datos</button>
+    </nav>
+  </header>
+  <p id="error" class="aviso" role="alert" hidden></p>
+
+  <section id="vista-documentos" class="bloque">
+    <div class="fila" style="justify-content:space-between;margin-bottom:12px">
+      <div class="fila">
+        <button class="principal" data-nuevo="factura">Nueva factura</button>
+        <button data-nuevo="presupuesto">Nuevo presupuesto</button>
+      </div>
+      <label style="grid-auto-flow:column;align-items:center">Ver
+        <select id="filtro"><option value="">Todo</option><option value="factura">Facturas</option><option value="presupuesto">Presupuestos</option><option value="pendiente">Facturas sin cobrar</option></select>
+      </label>
+    </div>
+    <div class="desplaza">
+      <table class="tabla">
+        <thead><tr><th>Documento</th><th>Estado</th><th>Fecha</th><th>Cliente</th><th class="num">Total</th></tr></thead>
+        <tbody id="lista"></tbody>
+      </table>
+    </div>
+    <p id="resumen" class="nota"></p>
+  </section>
+
+  <section id="vista-editor" hidden>
+    <div class="editor">
+      <div class="bloque" style="display:grid;gap:14px">
+        <div class="fila" style="justify-content:space-between">
+          <h2 id="titulo-editor" style="margin:0"></h2>
+          <button id="volver">Volver a la lista</button>
+        </div>
+        <div class="rejilla">
+          <label>Cliente<select id="d-cliente"></select></label>
+          <label>Fecha<input type="date" id="d-fecha"></label>
+          <label id="l-venc">Vencimiento<input type="date" id="d-vencimiento"></label>
+        </div>
+        <div class="desplaza">
+          <table class="tabla lineas">
+            <thead><tr><th>Concepto</th><th>Cantidad</th><th>Precio (€)</th><th>IVA</th><th class="num">Importe</th><th><span hidden>Quitar</span></th></tr></thead>
+            <tbody id="lineas"></tbody>
+          </table>
+        </div>
+        <div class="fila"><button id="mas-linea">Añadir línea</button></div>
+        <div class="rejilla">
+          <label>Retención de IRPF
+            <select id="d-irpf"><option value="0">Sin retención</option><option value="7">7 % (nuevos autónomos)</option><option value="15">15 %</option><option value="19">19 %</option></select>
+          </label>
+        </div>
+        <label>Notas (forma de pago, condiciones, validez del presupuesto…)<textarea id="d-notas"></textarea></label>
+        <div class="fila" id="acciones"></div>
+        <p class="nota" id="nota-editor"></p>
+      </div>
+      <div class="columna-hoja" style="display:grid;gap:8px">
+        <p class="nota">Así queda. Para el PDF: Imprimir y elige “Guardar como PDF”.</p>
+        <div class="hoja" id="hoja"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="vista-clientes" class="bloque" hidden>
+    <h2>Clientes</h2>
+    <form id="form-cliente" class="rejilla" style="margin-bottom:16px">
+      <input type="hidden" name="id">
+      <label>Nombre o razón social<input name="nombre" required></label>
+      <label>NIF / CIF<input name="nif"></label>
+      <label>Dirección<input name="direccion"></label>
+      <label>Email<input name="email" type="email"></label>
+      <div class="fila" style="align-self:end"><button class="principal" type="submit">Guardar cliente</button><button type="reset">Limpiar</button></div>
+    </form>
+    <div class="desplaza"><table class="tabla"><thead><tr><th>Nombre</th><th>NIF</th><th>Dirección</th><th></th></tr></thead><tbody id="clientes"></tbody></table></div>
+  </section>
+
+  <section id="vista-emisor" class="bloque" hidden>
+    <h2>Mis datos</h2>
+    <p class="nota">Salen en cada factura. Al emitir, se guardan con ella: cambiarlos después no altera lo ya emitido.</p>
+    <form id="form-emisor" class="rejilla">
+      <label>Nombre o razón social<input name="nombre"></label>
+      <label>NIF / CIF<input name="nif"></label>
+      <label>Dirección fiscal<input name="direccion"></label>
+      <label>Email<input name="email"></label>
+      <label>Teléfono<input name="telefono"></label>
+      <label>IBAN para transferencias<input name="iban"></label>
+      <label style="grid-column:1/-1">Pie de página (registro mercantil, texto legal…)<textarea name="pie"></textarea></label>
+      <div class="fila"><button class="principal" type="submit">Guardar</button><span class="nota" id="ok-emisor" role="status"></span></div>
+    </form>
+  </section>
+
+  <p class="nota">Tus datos se guardan en facturas.db, en la carpeta del programa: haz copia de ese archivo. Este programa no está adaptado a VeriFactu: cuando la obligación te alcance, necesitarás un software de facturación homologado.</p>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const IVAS = [21, 10, 4, 0];
+let datos = { emisor: {}, clientes: [], documentos: [] };
+let doc = null;
+
+const euros = (c) => (c / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR", useGrouping: "always" });
+const fechaEs = (f) => (f ? f.split("-").reverse().join("/") : "");
+
+// Importes en céntimos: base por línea redondeada, cuota por tipo de IVA sobre la suma de bases.
+function totales(d) {
+  const bases = {};
+  let base = 0;
+  for (const l of d.lineas) {
+    const imp = Math.round((Number(l.cantidad) || 0) * (Number(l.precio) || 0) * 100);
+    bases[l.iva] = (bases[l.iva] || 0) + imp;
+    base += imp;
+  }
+  const ivas = Object.entries(bases).map(([tipo, b]) => ({ tipo: Number(tipo), base: b, cuota: Math.round((b * Number(tipo)) / 100) })).sort((x, y) => y.tipo - x.tipo);
+  const irpf = Math.round((base * (Number(d.irpf) || 0)) / 100);
+  return { base, ivas, irpf, total: base + ivas.reduce((s, i) => s + i.cuota, 0) - irpf };
+}
+
+async function api(ruta, cuerpo) {
+  $("error").hidden = true;
+  const r = await fetch(ruta, cuerpo ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cuerpo) } : {});
+  const res = await r.json();
+  if (!r.ok) { $("error").textContent = res.error; $("error").hidden = false; throw new Error(res.error); }
+  return res;
+}
+const recargar = async () => { datos = await api("/api/datos"); pintarLista(); pintarClientes(); };
+const cliente = (id) => datos.clientes.find((c) => c.id === Number(id));
+
+function ver(vista) {
+  for (const v of ["documentos", "editor", "clientes", "emisor"]) $(`vista-${v}`).hidden = v !== vista;
+  document.querySelectorAll("nav button").forEach((b) => (b.dataset.vista === vista ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current")));
+}
+document.querySelectorAll("nav button").forEach((b) => b.addEventListener("click", () => ver(b.dataset.vista)));
+
+function pintarLista() {
+  const f = $("filtro").value;
+  const docs = datos.documentos.filter((d) => !f || (f === "pendiente" ? d.tipo === "factura" && d.estado === "emitida" : d.tipo === f));
+  $("lista").replaceChildren(...docs.map((d) => {
+    const tr = document.createElement("tr");
+    const nombre = d.codigo || `Borrador de ${d.tipo}`;
+    const abrir = document.createElement("button");
+    abrir.textContent = nombre;
+    abrir.addEventListener("click", () => editar(d));
+    const est = document.createElement("span");
+    est.className = `estado e-${d.estado}`;
+    est.textContent = d.estado;
+    const celdas = [abrir, est, fechaEs(d.fecha), (d.cliente || cliente(d.cliente_id) || {}).nombre || "—", euros(totales(d).total)];
+    celdas.forEach((c, i) => { const td = document.createElement("td"); td.append(c); if (i === 4) td.className = "num"; tr.append(td); });
+    return tr;
+  }));
+  if (!docs.length) $("lista").innerHTML = '<tr><td colspan="5" class="nota">Nada todavía. Empieza por “Mis datos” y un cliente.</td></tr>';
+  const pendiente = datos.documentos.filter((d) => d.tipo === "factura" && d.estado === "emitida").reduce((s, d) => s + totales(d).total, 0);
+  $("resumen").textContent = pendiente ? `Pendiente de cobro: ${euros(pendiente)}` : "";
+}
+$("filtro").addEventListener("change", pintarLista);
+
+function pintarClientes() {
+  $("clientes").replaceChildren(...datos.clientes.map((c) => {
+    const tr = document.createElement("tr");
+    for (const k of ["nombre", "nif", "direccion"]) { const td = document.createElement("td"); td.textContent = c[k] || "—"; tr.append(td); }
+    const td = document.createElement("td");
+    const ed = document.createElement("button"); ed.textContent = "Editar";
+    ed.addEventListener("click", () => { for (const k of ["id", "nombre", "nif", "direccion", "email"]) $("form-cliente").elements[k].value = c[k] ?? ""; });
+    const bo = document.createElement("button"); bo.textContent = "Borrar"; bo.className = "peligro";
+    bo.addEventListener("click", async () => { await api("/api/cliente/borrar", { id: c.id }); recargar(); });
+    td.append(ed, " ", bo); tr.append(td);
+    return tr;
+  }));
+  if (!datos.clientes.length) $("clientes").innerHTML = '<tr><td colspan="4" class="nota">Sin clientes.</td></tr>';
+  $("d-cliente").replaceChildren(new Option("Elige cliente", ""), ...datos.clientes.map((c) => new Option(c.nombre, c.id)));
+}
+
+$("form-cliente").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = Object.fromEntries(new FormData(e.target));
+  await api("/api/cliente", { ...f, id: f.id ? Number(f.id) : null });
+  e.target.reset(); e.target.elements.id.value = "";
+  recargar();
+});
+$("form-emisor").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  await api("/api/emisor", Object.fromEntries(new FormData(e.target)));
+  $("ok-emisor").textContent = "Guardado";
+  setTimeout(() => ($("ok-emisor").textContent = ""), 1500);
+  recargar();
+});
+
+// ── Editor ──
+const bloqueado = () => doc.estado !== "borrador";
+
+function filaLinea(l = { concepto: "", cantidad: 1, precio: 0, iva: 21 }) {
+  const tr = document.createElement("tr");
+  const campo = (tipo, valor, extra = {}) => { const i = Object.assign(document.createElement("input"), { type: tipo, value: valor, disabled: bloqueado(), ...extra }); i.addEventListener("input", leerEditor); return i; };
+  const iva = document.createElement("select");
+  iva.disabled = bloqueado();
+  IVAS.forEach((t) => iva.add(new Option(`${t} %`, t)));
+  iva.value = l.iva;
+  iva.addEventListener("change", leerEditor);
+  const quitar = Object.assign(document.createElement("button"), { type: "button", textContent: "×", disabled: bloqueado(), className: "peligro" });
+  quitar.setAttribute("aria-label", "Quitar línea");
+  quitar.addEventListener("click", () => { tr.remove(); leerEditor(); });
+  const importe = document.createElement("td");
+  importe.className = "num importe";
+  const celdas = [campo("text", l.concepto, { placeholder: "Concepto" }), campo("number", l.cantidad, { step: "any", min: 0 }), campo("number", l.precio, { step: "0.01" }), iva];
+  celdas.forEach((c) => { const td = document.createElement("td"); td.append(c); tr.append(td); });
+  tr.append(importe);
+  const td = document.createElement("td"); td.append(quitar); tr.append(td);
+  return tr;
+}
+
+function leerEditor() {
+  if (bloqueado()) return pintarHoja();
+  doc.cliente_id = Number($("d-cliente").value) || null;
+  doc.fecha = $("d-fecha").value;
+  doc.vencimiento = $("d-vencimiento").value;
+  doc.irpf = Number($("d-irpf").value);
+  doc.notas = $("d-notas").value;
+  doc.lineas = [...$("lineas").rows].map((tr) => {
+    const [c, n, p, i] = tr.querySelectorAll("input, select");
+    return { concepto: c.value, cantidad: Number(n.value), precio: Number(p.value), iva: Number(i.value) };
+  });
+  pintarHoja();
+}
+
+function pintarHoja() {
+  [...$("lineas").rows].forEach((tr, i) => { const l = doc.lineas[i]; if (l) tr.querySelector(".importe").textContent = euros(Math.round(l.cantidad * l.precio * 100)); });
+  const t = totales(doc);
+  const em = doc.emisor || datos.emisor;
+  const cl = doc.cliente || cliente(doc.cliente_id) || {};
+  const h = $("hoja");
+  h.replaceChildren();
+  const add = (padre, tag, texto, props = {}) => { const e = Object.assign(document.createElement(tag), props); if (texto != null) e.textContent = texto; padre.append(e); return e; };
+  if (doc.estado === "borrador") add(h, "div", "BORRADOR", { className: "marca-agua" });
+  const cab = add(h, "div", null, { className: "cab" });
+  const izq = add(cab, "div");
+  add(izq, "h3", doc.tipo === "factura" ? "FACTURA" : "PRESUPUESTO");
+  add(izq, "div", doc.codigo ? `Nº ${doc.codigo}` : "Sin número (se asigna al emitir)");
+  const der = add(cab, "div", null, { style: "text-align:right" });
+  add(der, "div", `Fecha: ${fechaEs(doc.fecha)}`);
+  if (doc.vencimiento) add(der, "div", `${doc.tipo === "factura" ? "Vencimiento" : "Válido hasta"}: ${fechaEs(doc.vencimiento)}`);
+  const partes = add(h, "div", null, { className: "partes" });
+  for (const [titulo, p] of [["Emisor", em], [doc.tipo === "factura" ? "Cliente" : "Para", cl]]) {
+    const b = add(partes, "div");
+    add(b, "small", titulo);
+    add(b, "strong", p.nombre || "—");
+    for (const k of ["nif", "direccion", "email", "telefono"]) if (p[k]) add(b, "div", k === "nif" ? `NIF: ${p.nif}` : p[k]);
+  }
+  const tabla = add(h, "table");
+  const cabT = add(add(tabla, "thead"), "tr");
+  ["Concepto", "Cant.", "Precio", "IVA", "Importe"].forEach((x, i) => add(cabT, "th", x, i ? { className: "num" } : {}));
+  const cuerpo = add(tabla, "tbody");
+  for (const l of doc.lineas) {
+    const tr = add(cuerpo, "tr");
+    add(tr, "td", l.concepto);
+    add(tr, "td", l.cantidad.toLocaleString("es-ES"), { className: "num" });
+    add(tr, "td", euros(Math.round(l.precio * 100)), { className: "num" });
+    add(tr, "td", `${l.iva} %`, { className: "num" });
+    add(tr, "td", euros(Math.round(l.cantidad * l.precio * 100)), { className: "num" });
+  }
+  const tot = add(h, "table", null, { className: "totales" });
+  const fila = (a, b) => { const tr = add(tot, "tr"); add(tr, "td", a); add(tr, "td", b, { className: "num" }); };
+  fila("Base imponible", euros(t.base));
+  for (const i of t.ivas) fila(`IVA ${i.tipo} %${t.ivas.length > 1 ? ` sobre ${euros(i.base)}` : ""}`, euros(i.cuota));
+  if (t.irpf) fila(`Retención IRPF ${doc.irpf} %`, `−${euros(t.irpf)}`);
+  fila("Total", euros(t.total));
+  const pie = [doc.notas, doc.tipo === "factura" && em.iban ? `Pago por transferencia: ${em.iban}` : "", em.pie].filter(Boolean).join("\n\n");
+  if (pie) add(h, "div", pie, { className: "pie" });
+}
+
+function editar(d) {
+  doc = structuredClone(d);
+  ver("editor");
+  $("titulo-editor").textContent = doc.codigo || `Nuevo ${doc.tipo === "factura" ? "borrador de factura" : "presupuesto (borrador)"}`;
+  $("l-venc").firstChild.textContent = doc.tipo === "factura" ? "Vencimiento" : "Válido hasta";
+  for (const [id, v] of [["d-cliente", doc.cliente_id ?? ""], ["d-fecha", doc.fecha], ["d-vencimiento", doc.vencimiento || ""], ["d-irpf", doc.irpf || 0], ["d-notas", doc.notas || ""]]) {
+    $(id).value = v; $(id).disabled = bloqueado();
+  }
+  $("lineas").replaceChildren(...(doc.lineas.length ? doc.lineas : [undefined]).map(filaLinea));
+  $("mas-linea").disabled = bloqueado();
+  pintarAcciones();
+  leerEditor();
+}
+
+function boton(texto, fn, clase = "") {
+  const b = Object.assign(document.createElement("button"), { textContent: texto, className: clase, type: "button" });
+  b.addEventListener("click", async () => { try { await fn(); } catch { /* el error ya se muestra arriba */ } });
+  return b;
+}
+
+function pintarAcciones() {
+  const a = $("acciones");
+  a.replaceChildren();
+  $("nota-editor").textContent = "";
+  if (!bloqueado()) {
+    a.append(
+      boton("Guardar borrador", async () => { const r = await api("/api/documento", doc); doc.id = r.id; await recargar(); $("nota-editor").textContent = "Guardado."; }),
+      boton(doc.tipo === "factura" ? "Emitir factura" : "Emitir presupuesto", async () => {
+        const r = await api("/api/documento", doc); doc.id = r.id;
+        await api("/api/documento/emitir", { id: doc.id }); await recargar();
+        editar(datos.documentos.find((x) => x.id === doc.id));
+      }, "principal"),
+    );
+    if (doc.id) a.append(boton("Borrar borrador", async () => { await api("/api/documento/borrar", { id: doc.id }); await recargar(); ver("documentos"); }, "peligro"));
+    $("nota-editor").textContent = doc.tipo === "factura" ? "Al emitir recibe su número correlativo y ya no se puede modificar." : "";
+  } else {
+    a.append(boton("Imprimir o PDF", () => window.print(), "principal"));
+    const cambiar = (estado, texto) => boton(texto, async () => { await api("/api/documento/estado", { id: doc.id, estado }); await recargar(); editar(datos.documentos.find((x) => x.id === doc.id)); });
+    if (doc.tipo === "factura") a.append(doc.estado === "emitida" ? cambiar("pagada", "Marcar como cobrada") : cambiar("emitida", "Marcar como pendiente"));
+    else {
+      a.append(cambiar("aceptado", "Aceptado"), cambiar("rechazado", "Rechazado"));
+      a.append(boton("Convertir en factura", async () => { const r = await api("/api/documento/convertir", { id: doc.id }); await recargar(); editar(datos.documentos.find((x) => x.id === r.id)); }));
+    }
+  }
+}
+
+for (const id of ["d-cliente", "d-fecha", "d-vencimiento", "d-irpf", "d-notas"]) $(id).addEventListener("input", leerEditor);
+$("mas-linea").addEventListener("click", () => { $("lineas").append(filaLinea()); leerEditor(); $("lineas").lastElementChild.querySelector("input").focus(); });
+$("volver").addEventListener("click", () => ver("documentos"));
+document.querySelectorAll("[data-nuevo]").forEach((b) => b.addEventListener("click", () => {
+  const hoy = new Date().toISOString().slice(0, 10);
+  editar({ id: null, tipo: b.dataset.nuevo, estado: "borrador", cliente_id: null, fecha: hoy, vencimiento: "", lineas: [], irpf: 0, notas: "" });
+}));
+
+(async () => {
+  await recargar();
+  for (const [k, v] of Object.entries(datos.emisor)) if ($("form-emisor").elements[k]) $("form-emisor").elements[k].value = v;
+  if (!datos.emisor.nombre) ver("emisor");
+})();
+</script>
+</body>
+</html>
