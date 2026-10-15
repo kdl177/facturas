@@ -25,3 +25,7 @@ Todo se guarda en `facturas.db`, en la carpeta del programa. Haz copia de ese ar
 |---|---|
 | `FACTURAS_PUERTO` | `8414` |
 | `FACTURAS_BD` | `facturas.db` junto al programa |
+
+## Licencia
+
+MIT. Puedes usar, copiar, modificar y distribuir el código libremente, también con fines comerciales, manteniendo el aviso de autoría. Ver [LICENSE](LICENSE).
